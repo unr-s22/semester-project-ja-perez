@@ -1,6 +1,6 @@
 # List of References for Components
 - Clock
-  - https://www.arduino.cc/reference/en/libraries/rtczero/
+  - https://www.arduino.cc/reference/en/libraries/ds3231/
 - Temp/Humidity Sensor
   - https://create.arduino.cc/projecthub/pibots555/how-to-connect-dht11-sensor-with-arduino-uno-f4d239
 - LCD
