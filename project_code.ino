@@ -12,6 +12,7 @@
 
 #define THRESHOLD 75
 #define WATER_LEVEL 00
+#define HUMIDITY_SENSOR 9
 
 // Time
   const char *monthName[12] = {
@@ -83,6 +84,13 @@ void loop() {
     {
       start = (*pin_h & 0x40);
       // Read temp
+      int check = humiditySensor.read11(HUMIDITY_SENSOR);
+      temp = humiditySensor.temperature;
+        while (temp < THRESHOLD) {
+        delay(30);
+        check = humiditySensor.read11(HUMIDITY_SENSOR);
+        temp = humiditySensor.temperature;
+    },
       // Read humidity
       // print humidity and temp
       if (temp > THRESHOLD)
@@ -113,6 +121,7 @@ void loop() {
     write_pb(7, 1);
   }
 }
+    
     /*
     if (idle == 1)
     {
