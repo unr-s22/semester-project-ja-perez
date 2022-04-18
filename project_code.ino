@@ -14,6 +14,8 @@
 #define WATER_LEVEL 00
 #define HUMIDITY_SENSOR 9
 
+DHT humiditySensor;
+
 // Time
   const char *monthName[12] = {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -86,13 +88,22 @@ void loop() {
       // Read temp
       int check = humiditySensor.read11(HUMIDITY_SENSOR);
       temp = humiditySensor.temperature;
-        while (temp < THRESHOLD) {
+      while (temp < THRESHOLD) {
         delay(30);
         check = humiditySensor.read11(HUMIDITY_SENSOR);
         temp = humiditySensor.temperature;
     },
       // Read humidity
+    int check2 = humiditySensor.read11(HUMIDITY_SENSOR);
+    int humidity = humiditySensor.humidity;
+    while (humidity < -15){
+      delay(30);
+      check2 = humiditySensor.read11(HUMIDITY_SENSOR);
+      humidity = humiditySensor.temperature;
+    }
       // print humidity and temp
+      
+     
       if (temp > THRESHOLD)
       {
         // Running state
