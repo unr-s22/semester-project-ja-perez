@@ -8,13 +8,13 @@
 #include <DS1307RTC.h>
 // Temp/Humidity Sensor Library
 #include <DHT.h>
-#include <DHT_U.h>
+// #include <DHT_U.h>
 
 #define THRESHOLD 75
 #define WATER_LEVEL 00
-#define HUMIDITY_SENSOR 9
+#define DHT_PIN 9
 
-DHT humiditySensor;
+DHT HTSensor;
 
 // Time
   const char *monthName[12] = {
@@ -86,27 +86,27 @@ void loop() {
     {
       start = (*pin_h & 0x40);
       // Read temp ; will adjust pins once start build
-   int tempValue () {
-      int check = humiditySensor.read11(HUMIDITY_SENSOR);
-      tempV = humiditySensor.temperature;
+  int tempValue () {
+      int check = HTSensor.read11(DHT_PIN);
+      tempV = HTSensor.temperature;
       while (tempV < THRESHOLD) {
         delay(30);
-        check = humiditySensor.read11(HUMIDITY_SENSOR);
-        tempV = humiditySensor.temperature;
+        check = HTSensor.read11(DHT_PIN));
+        tempV = HTSensor.temperature;
       },
      return tempV;
    },
       // Read humidity ; will adjust pins once start build
    int humidityValue () {
-      int check2 = humiditySensor.read11(HUMIDITY_SENSOR);
-      int humidity = humiditySensor.humidity;
+      int check2 = HTSensor.read11(HUMIDITY_SENSOR);
+      int humidity = HTSensor.humidity;
       while (humidity < -15) {
         delay(30);
-        check2 = humiditySensor.read11(HUMIDITY_SENSOR);
-        humidity = humiditySensor.temperature;
+        check2 = HTSensor.read11(DHT_PIN));
+        humidity = HTSensor.humidity;
       },
       return humidity;
-    },
+    }, 
       // will adjust pins once start build
    int waterLevel () {
        digitalWrite(waterSensorP, HIGH);
