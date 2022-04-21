@@ -85,32 +85,55 @@ void loop() {
     while ((start & 0x40) != 0)
     {
       start = (*pin_h & 0x40);
-      // Read temp
+      // Read temp ; will adjust pins once start build
+   int tempValue () {
       int check = humiditySensor.read11(HUMIDITY_SENSOR);
-      temp = humiditySensor.temperature;
-      while (temp < THRESHOLD) {
+      tempV = humiditySensor.temperature;
+      while (tempV < THRESHOLD) {
         delay(30);
         check = humiditySensor.read11(HUMIDITY_SENSOR);
-        temp = humiditySensor.temperature;
+        tempV = humiditySensor.temperature;
+      },
+     return tempV;
+   },
+      // Read humidity ; will adjust pins once start build
+   int humidityValue () {
+      int check2 = humiditySensor.read11(HUMIDITY_SENSOR);
+      int humidity = humiditySensor.humidity;
+      while (humidity < -15) {
+        delay(30);
+        check2 = humiditySensor.read11(HUMIDITY_SENSOR);
+        humidity = humiditySensor.temperature;
+      },
+      return humidity;
     },
-      // Read humidity
-    int check2 = humiditySensor.read11(HUMIDITY_SENSOR);
-    int humidity = humiditySensor.humidity;
-    while (humidity < -15){
-      delay(30);
-      check2 = humiditySensor.read11(HUMIDITY_SENSOR);
-      humidity = humiditySensor.temperature;
-    }
-      // print humidity and temp
-      
+      // will adjust pins once start build
+   int waterLevel () {
+       digitalWrite(waterSensorP, HIGH);
+       delay(10);
+       int v = analogRead(waterSensorPin);
+       digitalWrite(waterSensorP, LOW);
+       return v;
+   }
+      // print humidity and temp ; i think the library is allowed for this?
+      void printHT () {
+        lcd.setCursor(0,1);
+        int new1 = tempValue();
+        lcd.print(new1);
+        lcd.print("C | ");
+        lcd.print("Hum: ");
+        int new2 = humidityValue(); 
+        lcd.print(new2);
+        lcd.print("%");
+      },
      
-      if (temp > THRESHOLD)
+      if (tempValue() > THRESHOLD)
       {
         // Running state
         write_pb(4, 1);
         print_state_change(start);
         // 
-        if (water_level <= WATER_LEVEL)
+        if (waterLevel() <= WATER_LEVEL)
         {
           // Transition to ERROR state
           print_state_change(error);
