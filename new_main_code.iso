@@ -1,0 +1,358 @@
+// Stepper Motor Library - Controls 
+#include <Stepper.h>
+// LCD Library - Display Temp, Humidity, Date/Time of Start
+#include <LiquidCrystal.h>
+// Clock Library - Logs Date and Time
+#include <Wire.h>
+#include <TimeLib.h>
+#include <DS1307RTC.h>
+// Temp/Humidity Sensor Library
+#include <DHT.h>
+#include <DHT_U.h>
+
+#define PCIE0 0
+#define PCIE1 1
+#define PCIE2 2
+#define TEMP_THRESHOLD 15
+#define W_L_THRESHOLD 1
+
+unsigned int disable = 0;
+unsigned int set_stop = 0;
+unsigned int TEMP = 15;
+unsigned int W_LEVEL = 2;
+
+// LCD
+const int rs = 8, en = 7, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+// Water/Temp Sensors
+#define waterSensorP 2
+#define waterSensorPin 0
+#define humiditySensorPin 9
+
+//DHT humiditySensor;
+
+// Defining ADC Registers
+  volatile unsigned char *myADMUX = (unsigned char *)  0x7C;
+  volatile unsigned char *myADCSRB = (unsigned char *) 0x7B;
+  volatile unsigned char *myADCSRA = (unsigned char *) 0x7A;
+  volatile unsigned int *myADCL = (unsigned int *)  0x78;
+
+// Time
+  const char *monthName[12] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  };
+  tmElements_t tm;
+  bool parse=false;
+  bool config=false;
+
+// States: [0] - [Disable, Idle, Error, Running]
+  const char* state_label[4] = {"Disable","Idle","Error","Running"};
+  int states[4] = {0, 0, 0, 0};
+
+// Define Interrupt Registers
+  volatile unsigned char *myPCICR = (unsigned char*) 0x68;
+  volatile unsigned char *myPCMSK0 = (unsigned char*) 0x6B;
+  volatile unsigned char *myPCMSK1 = (unsigned char*) 0x6C;
+  volatile unsigned char *myPCMSK2 = (unsigned char*) 0x6D;
+
+// Define Port B Registers
+  volatile unsigned char* port_b = (unsigned char*) 0x25;
+  volatile unsigned char* ddr_b  = (unsigned char*) 0x24;
+  volatile unsigned char* pin_b  = (unsigned char*) 0x23;
+
+// Define Port E Registers
+  volatile unsigned char* port_e = (unsigned char*) 0x2E;
+  volatile unsigned char* ddr_e  = (unsigned char*) 0x2D;
+  volatile unsigned char* pin_e  = (unsigned char*) 0x2C;
+
+// Define Port G Registers
+  volatile unsigned char* port_g = (unsigned char*) 0x34;
+  volatile unsigned char* ddr_g  = (unsigned char*) 0x33;
+  volatile unsigned char* pin_g  = (unsigned char*) 0x32;
+
+// Define Port H Registers
+  volatile unsigned char* port_h = (unsigned char*) 0x102;
+  volatile unsigned char* ddr_h  = (unsigned char*) 0x101;
+  volatile unsigned char* pin_h  = (unsigned char*) 0x100;
+ 
+
+// Define Port L Registers
+  volatile unsigned char* port_L = (unsigned char*) 0x10B;
+  volatile unsigned char* ddr_L  = (unsigned char*) 0x10A;
+  volatile unsigned char* pin_L  = (unsigned char*) 0x109;
+
+void setup() {
+  // Serial Initialization
+  Serial.begin(9600);
+  // Clock Setup
+      configure_RTC();
+      print_state_change(disable);
+      *port_b = 0x00;
+      write_pin(port_b, 7, 1);
+  // set PORTS L0, L2, L4, L6 as output
+  // LED PINS - 0:DISABLE, 2:IDLE, 4:ERROR, 6:RUNNING
+  *ddr_L = (1 << 0) | (1 << 2) | (1 << 4) | (1 << 6);
+  // Enable PORTB Interrupt
+  *myPCMSK0 = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7); // D13 - DISABLE, D12 - ERROR
+  *myPCICR = 1 << PCIE0;
+  *pin_b = (1 << 4) | (1 << 5) | (1 << 6);
+  states[0] = 1;
+
+  // Water/Temp Setup
+  *ddr_e = 1 << waterSensorP; // Set D 
+  write_pin(port_e, waterSensorP, 0);
+
+  // ADC initialization
+  adc_init();
+
+  // LCD
+  lcd.begin(16,2);
+}
+
+void loop() {
+  if (states[0] != 1)
+  {
+    // Calculate TEMP and W_LEVEL
+      //TEMP = tempValue();
+      //W_LEVEL = humidityValue();
+    // Display Temp and Water level values
+    lcd.setCursor(0,0);
+    lcd.print("TEMP: ");
+    delay(200);
+    lcd.setCursor(6, 0);
+    lcd.print(TEMP);
+    delay(200);
+    lcd.setCursor(0,1);
+    lcd.print("WATER LVL: ");
+    delay(200);
+    lcd.setCursor(11, 1);
+    lcd.print(W_LEVEL);
+    
+    // Check temperature
+    if (TEMP > TEMP_THRESHOLD)
+    {
+      states[0] = 0;
+      states[1] = 0;
+      states[2] = 0;
+      states[3] = 1;
+      running_mode(TEMP);
+      update_state();
+    }
+    // Check water level
+    else if (W_LEVEL <= W_L_THRESHOLD)
+    {   
+      states[0] = 0;
+      states[1] = 0;
+      states[2] = 1;
+      states[3] = 0;
+      update_state();
+    } 
+    if (states[2] == 1)
+    {
+      states[0] = 1;
+      states[1] = 0;
+      states[2] = 0;
+      states[3] = 0;
+      update_state();
+    }
+  }
+}
+
+ISR (PCINT0_vect)
+{
+      states[0] = 0;
+      states[1] = 0;
+      states[2] = 0;
+      states[3] = 0;
+    if ((*pin_b & 0x80) || set_stop == 1)
+    {
+      set_stop = 0;
+      // Turn fan off
+      states[0] = 1;
+    }
+    else if (*pin_b == 64) // Need to add water level > threshold requirement
+    {
+      states[2] = 1;
+    }
+    else if (*pin_b == 32) // Stepper Motor
+    {
+      // print change in vent position
+    }
+    else if (*pin_b == 16) // Stop button
+    {
+      states[0] = 1;
+      set_stop = 1;
+    }
+    else
+      states[1] = 1;
+    update_state();
+    delay(500);
+}
+
+void update_state()
+{
+    // Set current state LED to high
+    for (int i = 0; i < 4; i++)
+    {
+      if (states[i] == 1)
+      {
+        print_state_change(i);
+      }
+      write_pin(port_L, i * 2, states[i]);
+      //*port_L |= (states[i] * 1) << (i * 2);
+    }
+    if (states[0] == 1)
+    {
+      lcd.clear();  
+    }
+}
+
+void write_pin(volatile unsigned char* pin_x, unsigned int pin_num, unsigned int state)
+{
+  if(state == 0)
+  {
+    *pin_x &= ~(0x01 << pin_num);
+  }
+  else
+  {
+    *pin_x |= 0x01 << pin_num;
+  }
+}
+
+/*//////////////////////////////////////////////////////////////
+RTC FUNCTIONS
+//////////////////////////////////////////////////////////////*/
+void configure_RTC()
+{
+  // get the date and time the compiler was run
+  if (getDate(__DATE__) && getTime(__TIME__)) {
+    parse = true;
+    // and configure the RTC with this info
+    if (RTC.write(tm)) {
+      config = true;
+    }
+  } 
+}
+bool getTime(const char *str)
+{
+  int Hour, Min, Sec;
+
+  if (sscanf(str, "%d:%d:%d", &Hour, &Min, &Sec) != 3) return false;
+  tm.Hour = Hour;
+  tm.Minute = Min + 4;
+  tm.Second = Sec;
+  return true;
+}
+bool getDate(const char *str)
+{
+  char Month[12];
+  int Day, Year;
+  uint8_t monthIndex;
+
+  if (sscanf(str, "%s %d %d", Month, &Day, &Year) != 3) return false;
+  for (monthIndex = 0; monthIndex < 12; monthIndex++) {
+    if (strcmp(Month, monthName[monthIndex]) == 0) break;
+  }
+  if (monthIndex >= 12) return false;
+  tm.Day = Day;
+  tm.Month = monthIndex + 1;
+  tm.Year = CalendarYrToTm(Year);
+  return true;
+}
+void print_state_change(unsigned int index) 
+{
+        Serial.print(" Transistion to state:");
+        Serial.println(state_label[index]);
+         while(!Serial);
+         delay(200);
+         if (parse&&config)
+         {
+            Serial.print(__TIME__);
+            Serial.print(", Date=");
+            Serial.println(__DATE__);
+         }
+}
+
+void running_mode(int temp)
+{
+  update_state();
+  // turn fan on
+  while (TEMP > TEMP_THRESHOLD)
+  { 
+    // update current temperature
+    // check water level
+    if (W_LEVEL <= W_L_THRESHOLD)
+    {
+      states[0] = 0;
+      states[1] = 0;
+      states[2] = 1;
+      states[3] = 0;
+      update_state();
+      break;
+    }
+    else 
+      {
+      states[0] = 0;
+      states[1] = 1;
+      states[2] = 0;
+      states[3] = 0;
+      }
+  }
+}
+/*
+int humidityValue (){
+    int check = humiditySensor.read11(humiditySensorPin);
+    int humidity = humiditySensor.humidity;
+    while (humidity < -15){
+      delay(25);
+      check = humiditySensor.read11(humiditySensorPin);
+      humidity = humiditySensor.temperature;
+    }
+    return humidity;
+}
+
+int tempValue (){
+    int check = humiditySensor.read11(humiditySensorPin);
+    int temperature = humiditySensor.temperature;
+    while (temperature < -15){
+      delay(25);
+      check = humiditySensor.read11(humiditySensorPin);
+      temperature = humiditySensor.temperature;
+    }
+    return temperature;
+}
+
+int waterLevel () {
+  write_pin(port_e, waterSensorP, 1);
+  //digitalWrite(waterSensorP, HIGH);
+  delay(10);
+  int v = adc_read(waterSensorPin);
+  write_pin(port_e, waterSensorP, 0);
+  //digitalWrite(waterSensorP, LOW);
+  return v;
+}
+*/
+void adc_init()
+{
+  *myADCSRA = 0x80; // Turns ADC on and sets clock prescaler to (111)2 -> (128)10
+  *myADCSRB &= 0xF0; // Sets ADC0: MUX[0:5] = 000000
+  *myADMUX = 0x40; // Sets Vref to AVCC, right justified, ADC output channel = 0 (0000)
+}
+
+unsigned int adc_read(unsigned char adc_channel)
+{ 
+  *myADMUX &= 0xE0; // clears channel selection
+  *myADCSRB &= 0xF7; // clears mux 5 channel selection
+
+  if (adc_channel > 7)
+  {
+    adc_channel -= 8;
+    *myADCSRB |= 0x08; // Set mux 5 to 1: (MUX 5, MUX 3, MUX 2, MUX 1) -> 1XXX
+  }
+  *myADMUX += adc_channel;
+  *myADCSRA |= 0x40;  // Starts conversion
+  while ((*myADCSRA & 0x40) != 0); // See if conversion is done
+  return *myADCL;
+}
