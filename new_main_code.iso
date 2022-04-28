@@ -36,8 +36,9 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 #define waterSensorP 2
 #define waterSensorPin 0
 #define DHT_PIN 9
+#define DHTTYPE DHT11
 
-//DHT humiditySensor;
+DHT dhtC (DHT_PIN, DHTTYPE);
 
 // Defining ADC Registers
   volatile unsigned char *myADMUX = (unsigned char *)  0x7C;
@@ -368,29 +369,16 @@ WATER & TEMP FUNCTIONS
 //////////////////////////////////////////////////////////////*/
 /*
 int humidityValue (){
-    int check = HTSensor.read11(DHT_PIN);
-    int humidity = HTSensor.humidity;
-    while (humidity < -15){
-      delay(30);
-      check = HTSensor.read11(DHT_PIN);
-      humidity = HTSensor.temperature;
-    }
+    int humidity = dhtC.humidity;
     return humidity;
 }
 
 int tempValue (){
-    int check = HTSensor.read11(DHT_PIN);
-    int temperature = HTSensor.temperature;
-    while (temperature < -15){
-      delay(25);
-      check = HTSensor.read11(DHT_PIN);
-      temperature = HTSensor.temperature;
-    }
+    int temperature = dhtC.temperature;
     return temperature;
 }
 */
 int waterLevel () {
-  //delay(10);
   int v = adc_read(waterSensorPin);
   return v;
 }
