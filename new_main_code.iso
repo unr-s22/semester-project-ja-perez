@@ -14,7 +14,7 @@
 #define PCIE0 0
 #define PCIE1 1
 #define PCIE2 2
-#define TEMP_THRESHOLD 15
+#define TEMP_THRESHOLD 0
 #define W_L_THRESHOLD 1
 
 unsigned int disable = 1;
@@ -35,7 +35,7 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 // Water/Temp Sensors
 #define waterSensorP 2
 #define waterSensorPin 0
-#define DHT_PIN 9
+#define DHT_PIN 3
 #define DHTTYPE DHT11
 
 DHT dhtC (DHT_PIN, DHTTYPE);
@@ -133,6 +133,9 @@ void setup() {
 
   // LCD
   lcd.begin(16,2);
+
+  // Water level Pin
+  
 }
 
 void loop() {
@@ -143,7 +146,7 @@ void loop() {
   if (states[0] == 0)
   {
     // Calculate TEMP and W_LEVEL
-    //TEMP = tempValue();
+    TEMP = tempValue();
     W_LEVEL = waterLevel();
     // Display Temp and Water level values
     update_lcd(TEMP, W_LEVEL);
@@ -178,6 +181,7 @@ void running_mode(int temp, int w_level)
     while (temp > TEMP_THRESHOLD) 
     {
       // update temp /////////////////////////////////////////////////
+      temp = tempValue();
       w_level = waterLevel();
       if (w_level < W_L_THRESHOLD)
       {
@@ -205,19 +209,20 @@ void error_mode(int w_level)
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print("Water level is");
-  //delay(200);
+  delay(200);
   lcd.setCursor(0,1);
   lcd.print("too low");
-  //delay(200);
+  delay(200);
   }
   else
   {
     lcd.clear();
     lcd.setCursor(0,0);
     lcd.print("Error");
-    //delay(200);
+    delay(200);
   }
-  //delay(500);
+  delay(500);
+  lcd.clear();
 }
 /*//////////////////////////////////////////////////////////////
 INTERRUPT FUNCTIONS
@@ -280,7 +285,7 @@ void update_state(int index)
       lcd.clear();
       lcd.setCursor(0,0);
       lcd.print("ERROR");
-     // delay(200);
+      delay(200);
     }
 }
 void print_state_change(unsigned int index) 
@@ -288,7 +293,7 @@ void print_state_change(unsigned int index)
         Serial.print(" Transistion to state:");
         Serial.println(state_label[index]);
          while(!Serial);
-         //delay(200);
+         delay(200);
          if (parse&&config)
          {
             Serial.print(__TIME__);
@@ -300,13 +305,13 @@ void update_lcd(int curr_temp, int curr_w_l)
 {
     lcd.setCursor(0,0);
     lcd.print("TEMP: ");
-   // delay(200);
+    delay(200);
     lcd.setCursor(6, 0);
     lcd.print(curr_temp);
-   // delay(200);
+    delay(200);
     lcd.setCursor(0,1);
     lcd.print("WATER LVL: ");
-   // delay(200);
+    delay(200);
     lcd.setCursor(11, 1);
     lcd.print(curr_w_l);
 }
@@ -367,18 +372,19 @@ bool getDate(const char *str)
 /*//////////////////////////////////////////////////////////////
 WATER & TEMP FUNCTIONS
 //////////////////////////////////////////////////////////////*/
-/*
+
 int humidityValue (){
-    int humidity = dhtC.humidity;
+    int humidity = dhtC.readHumidity();
     return humidity;
 }
 
 int tempValue (){
-    int temperature = dhtC.temperature;
+    int temperature = dhtC.readTemperature();
     return temperature;
 }
-*/
+
 int waterLevel () {
+  
   int v = adc_read(waterSensorPin);
   return v;
 }
